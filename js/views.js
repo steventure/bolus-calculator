@@ -1070,13 +1070,6 @@ const SimModal = {
                   <span class="input-unit">mg/dL</span>
                 </div>
               </div>
-              <div class="input-row" style="padding:10px 12px">
-                <span style="font-size:13px;color:var(--color-text)">Carbohydrates</span>
-                <div class="input-row-right">
-                  <input class="input-field" type="text" inputmode="decimal" id="sim-carbs" value="${mockData.diaryCarbs || ''}" placeholder="—" style="width:50px;font-size:14px">
-                  <span class="input-unit">g</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -1096,9 +1089,7 @@ const SimModal = {
     // Helper: capture current diary input values into mock data object
     const saveDiaryInputs = (md) => {
       const bgVal = document.getElementById('sim-bg').value;
-      const carbsVal = document.getElementById('sim-carbs').value;
       md.diaryBG = bgVal ? parseFloat(bgVal) : null;
-      md.diaryCarbs = carbsVal ? parseFloat(carbsVal) : null;
     };
 
     document.getElementById('sim-modal-close').addEventListener('click', closeModal);
