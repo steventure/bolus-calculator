@@ -166,7 +166,7 @@ const Views = {
             <div class="input-row">
               <span class="list-row-label">Carbs</span>
               <div class="input-row-right">
-                <input class="input-field" type="text" inputmode="decimal" id="med-carbs" value="${calcCarbs != null ? calcCarbs : (mockData.diaryCarbs || '')}" placeholder="Enter">
+                <input class="input-field" type="text" inputmode="decimal" id="med-carbs" value="${calcCarbs != null ? calcCarbs : ''}" placeholder="Enter">
                 <span class="input-unit">gram</span>
               </div>
             </div>
