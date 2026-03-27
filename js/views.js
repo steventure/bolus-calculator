@@ -372,14 +372,17 @@ const Views = {
                 </div>
               </div>
               <div class="input-row">
-                <span class="list-row-label">IOB</span>
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <span class="list-row-label">IOB</span>
+                  <button id="iob-logs-btn" style="font-size:11px;color:var(--color-primary);background:none;border:none;padding:0;text-align:left;cursor:pointer">Manage Logs</button>
+                </div>
                 <div class="input-row-right">
                   <input class="input-field" type="text" inputmode="decimal" id="calc-iob" value="${Math.round(iob * 100) / 100}" placeholder="0">
                   <span class="input-unit">U</span>
                 </div>
               </div>
             </div>
-            ${iob > 0 ? `<div class="iob-info">IOB auto-calculated from ${(mockData.recentInsulinLogs || []).filter(l => (Date.now() - l.timestamp) < settings.insulinActionDuration * 60000).length} recent dose(s) within the past ${formatDIA(settings.insulinActionDuration)}</div>` : ''}
+            <div class="iob-info" id="iob-info" ${iob > 0 ? '' : 'style="display:none"'}>IOB auto-calculated from ${(mockData.recentInsulinLogs || []).filter(l => (Date.now() - l.timestamp) < settings.insulinActionDuration * 60000).length} recent dose(s) within the past ${formatDIA(settings.insulinActionDuration)}</div>
 
             <div class="section-header">Parameters (${PERIOD_LABELS[period]})</div>
             <div class="card">
@@ -432,6 +435,9 @@ const Views = {
       const mode = params.mode || 'standalone';
       const calcBtn = document.getElementById('calc-btn');
       if (!calcBtn) return;
+
+      const iobLogsBtn = document.getElementById('iob-logs-btn');
+      if (iobLogsBtn) iobLogsBtn.addEventListener('click', () => showIobLogsPanel());
 
       calcBtn.addEventListener('click', () => {
         const settings = State.getSettings();
@@ -875,26 +881,132 @@ function showTimeBlockInfo() {
 }
 
 // ==========================================
+// IOB Logs Panel
+// ==========================================
+
+function showIobLogsPanel() {
+  const renderPanel = () => {
+    const existing = document.getElementById('iob-logs-panel');
+    if (existing) existing.remove();
+
+    const mockData = State.getMockData();
+    const logs = mockData.recentInsulinLogs || [];
+
+    const logsHtml = logs.length > 0
+      ? logs.map((log, i) => {
+          const ago = formatTimeAgo(log.timestamp);
+          return `<div class="mock-log-item">
+            <span>${log.name} — ${log.dose}U — ${ago}</span>
+            <span class="mock-log-remove" data-iob-remove="${i}">&times;</span>
+          </div>`;
+        }).join('')
+      : '<div class="mock-log-item" style="color:var(--color-text-secondary)">No recent insulin logs</div>';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'iob-logs-panel';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="sim-modal-box">
+        <div class="sim-modal-header">
+          <span style="font-size:15px;font-weight:600">Insulin Logs (for IOB)</span>
+          <span id="iob-panel-close" style="font-size:22px;cursor:pointer;color:var(--color-text-secondary)">&times;</span>
+        </div>
+        <div class="sim-modal-body">
+          <div style="background:#fff8e1;border:1px solid #f5a623;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#7a6000">
+            &#9888;&#65039; For demo purposes only. In the real app, IOB is calculated automatically from the user's logged insulin doses.
+          </div>
+          <div class="mock-config" style="margin:0">
+            <div id="iob-logs-list">${logsHtml}</div>
+            <div class="card" style="margin:0;margin-top:8px">
+              <div class="input-row" style="padding:10px 12px">
+                <span style="font-size:13px;color:var(--color-text)">Insulin</span>
+                <div class="input-row-right">
+                  <select class="select-field" id="iob-log-insulin" style="width:auto;font-size:13px;padding:6px 28px 6px 8px">
+                    ${RAPID_ACTING_INSULINS.map(ins => `<option value="${ins}">${ins}</option>`).join('')}
+                  </select>
+                </div>
+              </div>
+              <div class="input-row" style="padding:10px 12px">
+                <span style="font-size:13px;color:var(--color-text)">Dose</span>
+                <div class="input-row-right">
+                  <input class="input-field" type="text" inputmode="decimal" id="iob-log-dose" value="4" placeholder="0" style="width:44px;font-size:14px">
+                  <span class="input-unit">U</span>
+                </div>
+              </div>
+              <div class="input-row" style="padding:10px 12px">
+                <span style="font-size:13px;color:var(--color-text)">Time ago</span>
+                <div class="input-row-right">
+                  <input class="input-field" type="text" inputmode="decimal" id="iob-log-mins" value="60" placeholder="0" style="width:44px;font-size:14px">
+                  <span class="input-unit">min</span>
+                </div>
+              </div>
+            </div>
+            <button class="mock-add-btn" id="iob-add-log" style="font-size:13px;padding:8px">+ Add Log</button>
+          </div>
+        </div>
+        <div style="padding:12px 16px;border-top:1px solid var(--color-border)">
+          <button class="btn btn-primary" id="iob-panel-done" style="font-size:15px;padding:12px">Done</button>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('app-frame').appendChild(overlay);
+
+    const updateCalcIob = () => {
+      const md = State.getMockData();
+      const s = State.getSettings();
+      const newIob = BolusCalc.calculateIOB(md.recentInsulinLogs || [], s.insulinActionDuration / 60, new Date());
+      const iobInput = document.getElementById('calc-iob');
+      if (iobInput) iobInput.value = Math.round(newIob * 100) / 100;
+      const iobInfo = document.getElementById('iob-info');
+      if (iobInfo) {
+        const activeLogs = (md.recentInsulinLogs || []).filter(l => (Date.now() - l.timestamp) < s.insulinActionDuration * 60000);
+        iobInfo.textContent = `IOB auto-calculated from ${activeLogs.length} recent dose(s) within the past ${formatDIA(s.insulinActionDuration)}`;
+        iobInfo.style.display = newIob > 0 ? '' : 'none';
+      }
+    };
+
+    const closePanel = () => overlay.remove();
+    document.getElementById('iob-panel-close').addEventListener('click', closePanel);
+    document.getElementById('iob-panel-done').addEventListener('click', closePanel);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closePanel(); });
+
+    overlay.querySelectorAll('[data-iob-remove]').forEach(el => {
+      el.addEventListener('click', () => {
+        const md = State.getMockData();
+        md.recentInsulinLogs.splice(parseInt(el.dataset.iobRemove), 1);
+        State.setMockData(md);
+        updateCalcIob();
+        renderPanel();
+      });
+    });
+
+    document.getElementById('iob-add-log').addEventListener('click', () => {
+      const dose = parseFloat(document.getElementById('iob-log-dose').value) || 0;
+      const minsAgo = parseFloat(document.getElementById('iob-log-mins').value) || 0;
+      if (dose <= 0) return;
+      const md = State.getMockData();
+      md.recentInsulinLogs.push({
+        name: document.getElementById('iob-log-insulin').value || 'Fiasp',
+        dose,
+        timestamp: Date.now() - minsAgo * 60 * 1000
+      });
+      State.setMockData(md);
+      updateCalcIob();
+      renderPanel();
+    });
+  };
+
+  renderPanel();
+}
+
+// ==========================================
 // Simulation Settings Modal
 // ==========================================
 
 const SimModal = {
   show(onConfirm) {
     const mockData = State.getMockData();
-    const logs = mockData.recentInsulinLogs || [];
-
-    let logsHtml = '';
-    if (logs.length > 0) {
-      logsHtml = logs.map((log, i) => {
-        const ago = formatTimeAgo(log.timestamp);
-        return `<div class="mock-log-item">
-          <span>${log.name} — ${log.dose}U — ${ago}</span>
-          <span class="mock-log-remove" data-sim-remove="${i}">&times;</span>
-        </div>`;
-      }).join('');
-    } else {
-      logsHtml = '<div class="mock-log-item" style="color:var(--color-text-secondary)">No recent insulin logs</div>';
-    }
 
     const overlay = document.createElement('div');
     overlay.id = 'sim-modal';
@@ -907,28 +1019,6 @@ const SimModal = {
         </div>
         <div class="sim-modal-body">
           <div class="mock-config" style="margin:0">
-            <h3>Insulin Logs (for IOB)</h3>
-            <div id="sim-logs-list">${logsHtml}</div>
-            <div class="card" style="margin:0;margin-top:8px">
-              <div class="input-row" style="padding:10px 12px">
-                <span style="font-size:13px;color:var(--color-text)">Dose</span>
-                <div class="input-row-right">
-                  <input class="input-field" type="text" inputmode="decimal" id="sim-log-dose" value="4" placeholder="0" style="width:44px;font-size:14px">
-                  <span class="input-unit">U</span>
-                </div>
-              </div>
-              <div class="input-row" style="padding:10px 12px">
-                <span style="font-size:13px;color:var(--color-text)">Time ago</span>
-                <div class="input-row-right">
-                  <input class="input-field" type="text" inputmode="decimal" id="sim-log-mins" value="60" placeholder="0" style="width:44px;font-size:14px">
-                  <span class="input-unit">min</span>
-                </div>
-              </div>
-            </div>
-            <button class="mock-add-btn" id="sim-add-log" style="font-size:13px;padding:8px">+ Add Log</button>
-          </div>
-
-          <div class="mock-config" style="margin:0;margin-top:16px">
             <h3>Diary Entry Values</h3>
             <div class="card" style="margin:0">
               <div class="input-row" style="padding:10px 12px">
@@ -983,37 +1073,6 @@ const SimModal = {
     document.getElementById('sim-modal-close').addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) closeModal();
-    });
-
-    // Remove log
-    overlay.querySelectorAll('[data-sim-remove]').forEach(el => {
-      el.addEventListener('click', () => {
-        const idx = parseInt(el.dataset.simRemove);
-        const md = State.getMockData();
-        md.recentInsulinLogs.splice(idx, 1);
-        saveDiaryInputs(md);
-        State.setMockData(md);
-        closeModal();
-        SimModal.show(onConfirm);
-      });
-    });
-
-    // Add log
-    document.getElementById('sim-add-log').addEventListener('click', () => {
-      const dose = parseFloat(document.getElementById('sim-log-dose').value) || 0;
-      const minsAgo = parseFloat(document.getElementById('sim-log-mins').value) || 0;
-      if (dose <= 0) return;
-      const md = State.getMockData();
-      const insulinName = document.getElementById('sim-insulin').value || 'Fiasp';
-      md.recentInsulinLogs.push({
-        name: insulinName,
-        dose: dose,
-        timestamp: Date.now() - minsAgo * 60 * 1000
-      });
-      saveDiaryInputs(md);
-      State.setMockData(md);
-      closeModal();
-      SimModal.show(onConfirm);
     });
 
     // Confirm — save values and proceed
