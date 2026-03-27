@@ -190,7 +190,7 @@ const Views = {
             `}
           </div>
 
-          <button class="bolus-calc-btn" id="med-bolus-calc-btn">
+          <button class="bolus-calc-btn" id="med-bolus-calc-btn" ${isApplied ? '' : 'style="display:none"'}>
             &#128225; Bolus Calculator
           </button>
 
@@ -272,6 +272,8 @@ const Views = {
         });
       }
 
+      let selectedInsulin = params.appliedDose != null ? params.appliedInsulin : null;
+
       const addMedBtn = document.getElementById('med-add-medication');
       if (addMedBtn) {
         addMedBtn.addEventListener('click', () => {
@@ -288,6 +290,7 @@ const Views = {
           document.getElementById('med-insulin-select').addEventListener('change', (e) => {
             const val = e.target.value;
             if (!val) return;
+            selectedInsulin = val;
             selectRow.remove();
             addMedBtn.style.display = '';
             const insulinRow = document.createElement('div');
@@ -302,6 +305,7 @@ const Views = {
                 <span class="input-unit">unit</span>
               </div>`;
             list.appendChild(insulinRow);
+            document.getElementById('med-bolus-calc-btn').style.display = '';
           });
         });
       }
@@ -314,7 +318,8 @@ const Views = {
           App.navigate('calculator', {
             mode: 'contextual',
             calcBG: calcBG,
-            calcCarbs: currentCarbs != null ? currentCarbs : calcCarbs
+            calcCarbs: currentCarbs != null ? currentCarbs : calcCarbs,
+            selectedInsulin: selectedInsulin
           });
         });
       }
@@ -456,7 +461,7 @@ const Views = {
               <div class="section-header" style="padding-left:0">${mode === 'contextual' ? 'Apply To' : 'Rapid-Acting Insulin'}</div>
               <select class="select-field" id="calc-insulin" style="margin-bottom:12px">
                 ${RAPID_ACTING_INSULINS.map(ins =>
-                  `<option value="${ins}" ${ins === (mockData.selectedInsulin || 'Fiasp') ? 'selected' : ''}>${ins}</option>`
+                  `<option value="${ins}" ${ins === (params.selectedInsulin || mockData.selectedInsulin || 'Fiasp') ? 'selected' : ''}>${ins}</option>`
                 ).join('')}
               </select>
               <button class="btn btn-primary" id="calc-apply">
