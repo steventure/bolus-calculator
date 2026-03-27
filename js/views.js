@@ -653,10 +653,6 @@ const Views = {
             </div>
           </div>
 
-          <div id="settings-error" class="hidden" style="padding:8px 16px">
-            <span class="text-error" style="font-size:13px">Please fill in all required fields (Target BG, ICR, ISF)</span>
-          </div>
-
           <div style="padding:16px">
             <button class="btn btn-primary" id="settings-confirm">Confirm</button>
           </div>
@@ -738,18 +734,6 @@ const Views = {
 
       // Confirm
       document.getElementById('settings-confirm').addEventListener('click', () => {
-        let valid = true;
-        if (draft.targetBG == null) valid = false;
-        if (draft.icrMode === 'single' && draft.icrSingle == null) valid = false;
-        if (draft.icrMode === 'perPeriod' && Object.values(draft.icrPerPeriod).some(v => v == null)) valid = false;
-        if (draft.isfMode === 'single' && draft.isfSingle == null) valid = false;
-        if (draft.isfMode === 'perPeriod' && Object.values(draft.isfPerPeriod).some(v => v == null)) valid = false;
-
-        if (!valid) {
-          document.getElementById('settings-error').classList.remove('hidden');
-          return;
-        }
-
         State.setSettings(draft);
         App.back();
       });
