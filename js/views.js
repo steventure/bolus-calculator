@@ -125,13 +125,14 @@ const Views = {
       const appliedDose = params.appliedDose;
       const appliedInsulin = params.appliedInsulin;
       const isApplied = appliedDose != null;
-      // Carry forward calculator-entered BG/carbs for re-entry into calculator
       const calcBG = params.calcBG;
       const calcCarbs = params.calcCarbs;
-      const now = new Date();
-      const timeStr = now.toLocaleDateString('en-US', { weekday: 'short', month: '2-digit', day: '2-digit', year: 'numeric' }) + ', ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-      const period = BolusCalc.resolvePeriod(now);
-      const periodLabel = getPeriodDisplayLabel(period);
+
+      // Use simulated diary time if set, otherwise current time
+      const diaryTime = mockData.diaryTime ? new Date(mockData.diaryTime) : new Date();
+      const timeStr = diaryTime.toLocaleDateString('en-US', { weekday: 'short', month: '2-digit', day: '2-digit', year: 'numeric' }) + ', ' + diaryTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+      const period = BolusCalc.resolvePeriod(diaryTime);
+      const periodLabel = PERIOD_LABELS[period];
 
       return `
         <div class="panel-handle"></div>
@@ -284,7 +285,17 @@ const Views = {
       const mode = params.mode || 'standalone';
       const settings = State.getSettings();
       const mockData = State.getMockData();
-      const period = BolusCalc.resolvePeriod(new Date());
+
+      // Entry Point 1 (contextual): use simulated diary time
+      // Entry Point 2 (standalone): use current system time
+      let resolveTime;
+      if (mode === 'contextual' && mockData.diaryTime) {
+        resolveTime = new Date(mockData.diaryTime);
+      } else {
+        resolveTime = new Date();
+      }
+
+      const period = BolusCalc.resolvePeriod(resolveTime);
       const icr = BolusCalc.getEffectiveICR(settings, period);
       const isf = BolusCalc.getEffectiveISF(settings, period);
       const iob = BolusCalc.calculateIOB(
@@ -298,7 +309,6 @@ const Views = {
       let prefillBG = '';
       let prefillCarbs = '';
       if (mode === 'contextual') {
-        // Use calculator-entered values if available, otherwise fall back to mock diary data
         prefillBG = params.calcBG != null ? params.calcBG : (mockData.diaryBG || '');
         prefillCarbs = params.calcCarbs != null ? params.calcCarbs : (mockData.diaryCarbs || '');
       }
@@ -408,7 +418,6 @@ const Views = {
       calcBtn.addEventListener('click', () => {
         const settings = State.getSettings();
 
-        // Read all values from the editable input fields
         const currentBG = parseFloat(document.getElementById('calc-bg').value) || null;
         const carbs = parseFloat(document.getElementById('calc-carbs').value) || 0;
         const iob = parseFloat(document.getElementById('calc-iob').value) || 0;
@@ -428,7 +437,6 @@ const Views = {
 
         this._result = result;
 
-        // Show result
         let resultHtml = `
           <div class="result-card">
             <div class="result-label">Recommended Bolus</div>
@@ -474,7 +482,6 @@ const Views = {
           const insulin = document.getElementById('calc-insulin').value;
 
           if (mode === 'contextual') {
-            // Navigate back to medication view within the panel with the applied dose
             const bg = document.getElementById('calc-bg').value;
             const carbs = document.getElementById('calc-carbs').value;
             App.navigate('medication', {
@@ -484,10 +491,8 @@ const Views = {
               calcCarbs: carbs ? parseFloat(carbs) : null
             });
           } else {
-            // Standalone: go back to More tab first, then open diary panel
             const bg = document.getElementById('calc-bg').value;
             const carbs = document.getElementById('calc-carbs').value;
-            // Reset main view to More tab so panel close returns there
             App._currentView = 'more';
             App._currentParams = {};
             App._history = [];
@@ -513,6 +518,7 @@ const Views = {
     render() {
       const s = State.getSettings();
       this._draft = JSON.parse(JSON.stringify(s));
+      const blocks = BolusCalc.getTimeBlocks();
 
       return `
         <div class="header">
@@ -531,10 +537,15 @@ const Views = {
             </div>
           </div>
 
-          <div class="section-header">Insulin-to-Carb Ratio (ICR)</div>
-          <div class="segmented" id="icr-mode-toggle">
-            <button class="segmented-btn ${s.icrMode === 'single' ? 'active' : ''}" data-mode="single" data-target="icr">Single Value</button>
-            <button class="segmented-btn ${s.icrMode === 'perPeriod' ? 'active' : ''}" data-mode="perPeriod" data-target="icr">Per Period</button>
+          <div class="section-header" style="display:flex;align-items:center;justify-content:space-between">
+            <span>Insulin-to-Carb Ratio (ICR)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:0 16px 8px">
+            <div class="segmented" id="icr-mode-toggle" style="flex:1;margin:0">
+              <button class="segmented-btn ${s.icrMode === 'single' ? 'active' : ''}" data-mode="single" data-target="icr">Single Value</button>
+              <button class="segmented-btn ${s.icrMode === 'perPeriod' ? 'active' : ''}" data-mode="perPeriod" data-target="icr">Per Block</button>
+            </div>
+            <button class="info-btn" id="icr-info-btn" style="${s.icrMode === 'perPeriod' ? '' : 'visibility:hidden'}">&#9432;</button>
           </div>
           <div class="card">
             <div id="icr-single" class="${s.icrMode === 'perPeriod' ? 'hidden' : ''}">
@@ -549,7 +560,10 @@ const Views = {
             <div id="icr-period" class="${s.icrMode === 'single' ? 'hidden' : ''}">
               ${Object.entries(PERIOD_LABELS).map(([key, label]) => `
                 <div class="input-row">
-                  <span class="list-row-label" style="font-size:14px">${label}</span>
+                  <div>
+                    <span class="list-row-label" style="font-size:14px">${label}</span>
+                    <div style="font-size:11px;color:var(--color-text-secondary)">${formatTimeRange(blocks[key])}</div>
+                  </div>
                   <div class="input-row-right">
                     <input class="input-field settings-input" type="text" inputmode="decimal" data-setting="icrPerPeriod.${key}" value="${s.icrPerPeriod[key] || ''}" placeholder="—">
                     <span class="input-unit">g/U</span>
@@ -560,9 +574,12 @@ const Views = {
           </div>
 
           <div class="section-header">Insulin Sensitivity Factor (ISF)</div>
-          <div class="segmented" id="isf-mode-toggle">
-            <button class="segmented-btn ${s.isfMode === 'single' ? 'active' : ''}" data-mode="single" data-target="isf">Single Value</button>
-            <button class="segmented-btn ${s.isfMode === 'perPeriod' ? 'active' : ''}" data-mode="perPeriod" data-target="isf">Per Period</button>
+          <div style="display:flex;align-items:center;gap:8px;padding:0 16px 8px">
+            <div class="segmented" id="isf-mode-toggle" style="flex:1;margin:0">
+              <button class="segmented-btn ${s.isfMode === 'single' ? 'active' : ''}" data-mode="single" data-target="isf">Single Value</button>
+              <button class="segmented-btn ${s.isfMode === 'perPeriod' ? 'active' : ''}" data-mode="perPeriod" data-target="isf">Per Block</button>
+            </div>
+            <button class="info-btn" id="isf-info-btn" style="${s.isfMode === 'perPeriod' ? '' : 'visibility:hidden'}">&#9432;</button>
           </div>
           <div class="card">
             <div id="isf-single" class="${s.isfMode === 'single' ? '' : 'hidden'}">
@@ -577,7 +594,10 @@ const Views = {
             <div id="isf-period" class="${s.isfMode === 'single' ? 'hidden' : ''}">
               ${Object.entries(PERIOD_LABELS).map(([key, label]) => `
                 <div class="input-row">
-                  <span class="list-row-label" style="font-size:14px">${label}</span>
+                  <div>
+                    <span class="list-row-label" style="font-size:14px">${label}</span>
+                    <div style="font-size:11px;color:var(--color-text-secondary)">${formatTimeRange(blocks[key])}</div>
+                  </div>
                   <div class="input-row-right">
                     <input class="input-field settings-input" type="text" inputmode="decimal" data-setting="isfPerPeriod.${key}" value="${s.isfPerPeriod[key] || ''}" placeholder="—">
                     <span class="input-unit">(mg/dL)/U</span>
@@ -639,6 +659,7 @@ const Views = {
           e.target.classList.add('active');
           document.getElementById('icr-single').classList.toggle('hidden', mode !== 'single');
           document.getElementById('icr-period').classList.toggle('hidden', mode !== 'perPeriod');
+          document.getElementById('icr-info-btn').style.visibility = mode === 'perPeriod' ? 'visible' : 'hidden';
         });
       });
 
@@ -651,8 +672,13 @@ const Views = {
           e.target.classList.add('active');
           document.getElementById('isf-single').classList.toggle('hidden', mode !== 'single');
           document.getElementById('isf-period').classList.toggle('hidden', mode !== 'perPeriod');
+          document.getElementById('isf-info-btn').style.visibility = mode === 'perPeriod' ? 'visible' : 'hidden';
         });
       });
+
+      // Info buttons
+      document.getElementById('icr-info-btn').addEventListener('click', () => showTimeBlockInfo());
+      document.getElementById('isf-info-btn').addEventListener('click', () => showTimeBlockInfo());
 
       // Input changes
       document.querySelectorAll('.settings-input').forEach(input => {
@@ -694,7 +720,6 @@ const Views = {
 
       // Confirm
       document.getElementById('settings-confirm').addEventListener('click', () => {
-        // Validate
         let valid = true;
         if (draft.targetBG == null) valid = false;
         if (draft.icrMode === 'single' && draft.icrSingle == null) valid = false;
@@ -711,8 +736,141 @@ const Views = {
         App.back();
       });
     }
+  },
+
+  // ==========================================
+  // VIEW 6: Daily Routine Settings
+  // ==========================================
+  routine: {
+    _draft: null,
+
+    render() {
+      const rt = State.getRoutineTimes();
+      this._draft = JSON.parse(JSON.stringify(rt));
+
+      return `
+        <div class="header">
+          <button class="header-back" data-action="back">&#8249;</button>
+          <span class="header-title">Daily Routine</span>
+        </div>
+        <div class="content">
+          <div class="section-header">Set your daily schedule</div>
+          <div style="padding:0 16px 12px;font-size:13px;color:var(--color-text-secondary)">
+            These times define how your day is divided into time blocks for ICR and ISF settings.
+          </div>
+          <div class="card">
+            ${[
+              { key: 'wakeUp', label: 'Wakeup', icon: '&#9728;&#65039;' },
+              { key: 'breakfast', label: 'Breakfast', icon: '&#127838;' },
+              { key: 'lunch', label: 'Lunch', icon: '&#127858;' },
+              { key: 'dinner', label: 'Dinner', icon: '&#127860;' },
+              { key: 'bedTime', label: 'Bedtime', icon: '&#127769;' }
+            ].map(item => `
+              <div class="input-row">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-size:18px">${item.icon}</span>
+                  <span class="list-row-label">${item.label}</span>
+                </div>
+                <input type="time" class="time-input" id="routine-${item.key}" value="${formatHourToTimeInput(rt[item.key])}">
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="section-header">Resulting Time Blocks</div>
+          <div class="card" id="routine-blocks-preview">
+            ${renderBlocksPreview(rt)}
+          </div>
+
+          <div style="padding:16px">
+            <button class="btn btn-primary" id="routine-confirm">Save</button>
+          </div>
+        </div>
+      `;
+    },
+
+    init() {
+      const draft = this._draft;
+      const timeInputs = ['wakeUp', 'breakfast', 'lunch', 'dinner', 'bedTime'];
+
+      timeInputs.forEach(key => {
+        const input = document.getElementById(`routine-${key}`);
+        input.addEventListener('change', () => {
+          const [h, m] = input.value.split(':').map(Number);
+          draft[key] = h + m / 60;
+          // Update preview
+          document.getElementById('routine-blocks-preview').innerHTML = renderBlocksPreview(draft);
+        });
+      });
+
+      document.getElementById('routine-confirm').addEventListener('click', () => {
+        State.setRoutineTimes(draft);
+        App.back();
+      });
+    }
   }
 };
+
+// ==========================================
+// Time Block Info Panel
+// ==========================================
+
+function showTimeBlockInfo() {
+  const rt = State.getRoutineTimes();
+  const blocks = BolusCalc.getTimeBlocks(rt);
+
+  const overlay = document.createElement('div');
+  overlay.id = 'info-modal';
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="sim-modal-box">
+      <div class="sim-modal-header">
+        <span style="font-size:15px;font-weight:600">Time Block Definitions</span>
+        <span id="info-modal-close" style="font-size:22px;cursor:pointer;color:var(--color-text-secondary)">&times;</span>
+      </div>
+      <div class="sim-modal-body">
+        <div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:12px">
+          ICR and ISF can vary across the day due to circadian hormonal patterns. Time blocks are divided by your daily routine schedule.
+        </div>
+        <div class="card" style="margin:0">
+          <div class="input-row" style="padding:10px 12px;font-weight:600;font-size:12px;color:var(--color-text-secondary)">
+            <span>Block</span>
+            <span>Start → End</span>
+          </div>
+          ${Object.entries(PERIOD_LABELS).map(([key, label]) => `
+            <div class="input-row" style="padding:10px 12px">
+              <span style="font-size:13px;font-weight:500">${label}</span>
+              <span style="font-size:13px;color:var(--color-text-secondary)">${formatTimeRange(blocks[key])}</span>
+            </div>
+          `).join('')}
+        </div>
+        <div style="margin-top:12px;font-size:12px;color:var(--color-text-secondary)">
+          <div style="margin-bottom:4px"><strong>Block boundary rules:</strong></div>
+          <div>Early Morning: Wakeup → Breakfast</div>
+          <div>Morning: Breakfast → max(Breakfast, Lunch−1h)</div>
+          <div>Afternoon: Lunch−1h → max(Lunch, Dinner−1h)</div>
+          <div>Evening: Dinner−1h → max(Dinner, Bedtime−1h)</div>
+          <div>Overnight: Bedtime−1h → Wakeup</div>
+        </div>
+      </div>
+      <div style="padding:12px 16px;border-top:1px solid var(--color-border)">
+        <button class="btn btn-primary" id="info-goto-routine" style="font-size:15px;padding:12px">Adjust Daily Routine</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('app-frame').appendChild(overlay);
+
+  const closeModal = () => overlay.remove();
+  document.getElementById('info-modal-close').addEventListener('click', closeModal);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeModal();
+  });
+
+  document.getElementById('info-goto-routine').addEventListener('click', () => {
+    closeModal();
+    App.navigate('routine');
+  });
+}
 
 // ==========================================
 // Simulation Settings Modal
@@ -735,6 +893,11 @@ const SimModal = {
     } else {
       logsHtml = '<div class="mock-log-item" style="color:var(--color-text-secondary)">No recent insulin logs</div>';
     }
+
+    // Format diary time for input
+    const diaryTimeVal = mockData.diaryTime
+      ? new Date(mockData.diaryTime).toISOString().slice(0, 16)
+      : new Date().toISOString().slice(0, 16);
 
     const overlay = document.createElement('div');
     overlay.id = 'sim-modal';
@@ -771,6 +934,12 @@ const SimModal = {
           <div class="mock-config" style="margin:0;margin-top:16px">
             <h3>Diary Entry Values</h3>
             <div class="card" style="margin:0">
+              <div class="input-row" style="padding:10px 12px">
+                <span style="font-size:13px;color:var(--color-text)">Diary Time</span>
+                <div class="input-row-right">
+                  <input type="datetime-local" id="sim-diary-time" value="${diaryTimeVal}" style="font-size:13px;color:var(--color-primary);border:none;background:none;text-align:right">
+                </div>
+              </div>
               <div class="input-row" style="padding:10px 12px">
                 <span style="font-size:13px;color:var(--color-text)">Blood Glucose</span>
                 <div class="input-row-right">
@@ -815,8 +984,10 @@ const SimModal = {
     const saveDiaryInputs = (md) => {
       const bgVal = document.getElementById('sim-bg').value;
       const carbsVal = document.getElementById('sim-carbs').value;
+      const diaryTimeInput = document.getElementById('sim-diary-time').value;
       md.diaryBG = bgVal ? parseFloat(bgVal) : null;
       md.diaryCarbs = carbsVal ? parseFloat(carbsVal) : null;
+      md.diaryTime = diaryTimeInput ? new Date(diaryTimeInput).getTime() : null;
       md.selectedInsulin = document.getElementById('sim-insulin').value;
     };
 
@@ -859,11 +1030,7 @@ const SimModal = {
     // Confirm — save values and proceed
     document.getElementById('sim-confirm').addEventListener('click', () => {
       const md = State.getMockData();
-      const bgVal = document.getElementById('sim-bg').value;
-      const carbsVal = document.getElementById('sim-carbs').value;
-      md.diaryBG = bgVal ? parseFloat(bgVal) : null;
-      md.diaryCarbs = carbsVal ? parseFloat(carbsVal) : null;
-      md.selectedInsulin = document.getElementById('sim-insulin').value;
+      saveDiaryInputs(md);
       State.setMockData(md);
       closeModal();
       if (onConfirm) onConfirm();
@@ -891,13 +1058,28 @@ function formatDIA(minutes) {
   return `${h}h ${m}m`;
 }
 
-function getPeriodDisplayLabel(period) {
-  const map = {
-    wakeUp: 'Before Breakfast',
-    breakfast: 'After Breakfast',
-    lunch: 'After Lunch',
-    dinner: 'After Dinner',
-    bedTime: 'Before Bed'
-  };
-  return map[period] || period;
+function formatDecimalHour(h) {
+  const hours = Math.floor(h);
+  const mins = Math.round((h - hours) * 60);
+  return `${hours}:${mins.toString().padStart(2, '0')}`;
+}
+
+function formatTimeRange(block) {
+  return `${formatDecimalHour(block.start)} – ${formatDecimalHour(block.end)}`;
+}
+
+function formatHourToTimeInput(h) {
+  const hours = Math.floor(h);
+  const mins = Math.round((h - hours) * 60);
+  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+}
+
+function renderBlocksPreview(rt) {
+  const blocks = BolusCalc.getTimeBlocks(rt);
+  return Object.entries(PERIOD_LABELS).map(([key, label]) => `
+    <div class="input-row" style="padding:8px 16px">
+      <span style="font-size:13px;font-weight:500">${label}</span>
+      <span style="font-size:13px;color:var(--color-text-secondary)">${formatTimeRange(blocks[key])}</span>
+    </div>
+  `).join('');
 }

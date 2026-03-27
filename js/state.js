@@ -8,31 +8,42 @@ const defaultState = {
     icrMode: 'single',
     icrSingle: null,
     icrPerPeriod: {
-      wakeUp: null,
-      breakfast: null,
-      lunch: null,
-      dinner: null,
-      bedTime: null
+      earlyMorning: null,
+      morning: null,
+      afternoon: null,
+      evening: null,
+      overnight: null
     },
     isfMode: 'single',
     isfSingle: null,
     isfPerPeriod: {
-      wakeUp: null,
-      breakfast: null,
-      lunch: null,
-      dinner: null,
-      bedTime: null
+      earlyMorning: null,
+      morning: null,
+      afternoon: null,
+      evening: null,
+      overnight: null
     },
     insulinActionDuration: 240,
     roundingPreference: 'whole',
     showBreakdown: true
   },
+  routineTimes: Object.assign({}, DEFAULT_ROUTINE_TIMES),
   mockData: {
     recentInsulinLogs: DEFAULT_MOCK_INSULIN_LOGS,
     diaryBG: 180,
     diaryCarbs: 45,
+    diaryTime: null,
     selectedInsulin: 'Fiasp'
   }
+};
+
+// Map old period keys to new block keys
+const PERIOD_KEY_MIGRATION = {
+  wakeUp: 'earlyMorning',
+  breakfast: 'morning',
+  lunch: 'afternoon',
+  dinner: 'evening',
+  bedTime: 'overnight'
 };
 
 const State = {
@@ -53,12 +64,34 @@ const State = {
     }
   },
 
+  _migratePerPeriodKeys(savedObj) {
+    // If saved data has old keys (wakeUp, breakfast, etc.), migrate to new keys
+    if (!savedObj || typeof savedObj !== 'object') return null;
+    const hasOldKeys = 'wakeUp' in savedObj || 'breakfast' in savedObj || 'lunch' in savedObj;
+    if (!hasOldKeys) return savedObj;
+
+    const migrated = {};
+    for (const [oldKey, newKey] of Object.entries(PERIOD_KEY_MIGRATION)) {
+      migrated[newKey] = savedObj[oldKey] != null ? savedObj[oldKey] : null;
+    }
+    // Also keep any new keys that might already exist
+    for (const key of Object.keys(PERIOD_LABELS)) {
+      if (key in savedObj && !(key in migrated)) {
+        migrated[key] = savedObj[key];
+      }
+    }
+    return migrated;
+  },
+
   _merge(defaults, saved) {
     const result = JSON.parse(JSON.stringify(defaults));
     if (saved.settings) {
       for (const key in saved.settings) {
         if (key in result.settings) {
-          if (typeof result.settings[key] === 'object' && result.settings[key] !== null && !Array.isArray(result.settings[key])) {
+          if (key === 'icrPerPeriod' || key === 'isfPerPeriod') {
+            const migrated = this._migratePerPeriodKeys(saved.settings[key]);
+            if (migrated) Object.assign(result.settings[key], migrated);
+          } else if (typeof result.settings[key] === 'object' && result.settings[key] !== null && !Array.isArray(result.settings[key])) {
             Object.assign(result.settings[key], saved.settings[key]);
           } else {
             result.settings[key] = saved.settings[key];
@@ -70,11 +103,13 @@ const State = {
     if (result.settings.insulinActionDuration <= 8) {
       result.settings.insulinActionDuration = result.settings.insulinActionDuration * 60;
     }
+    // Merge routineTimes
+    if (saved.routineTimes) {
+      Object.assign(result.routineTimes, saved.routineTimes);
+    }
     if (saved.mockData) {
       for (const key in saved.mockData) {
-        if (key in result.mockData) {
-          result.mockData[key] = saved.mockData[key];
-        }
+        result.mockData[key] = saved.mockData[key];
       }
     }
     return result;
@@ -107,6 +142,16 @@ const State = {
 
   setSettings(settings) {
     this._state.settings = settings;
+    this._save();
+    this._notify();
+  },
+
+  getRoutineTimes() {
+    return JSON.parse(JSON.stringify(this._state.routineTimes));
+  },
+
+  setRoutineTimes(times) {
+    this._state.routineTimes = times;
     this._save();
     this._notify();
   },

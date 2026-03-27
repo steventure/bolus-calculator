@@ -337,6 +337,31 @@ body {
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
+.info-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-primary);
+  background: none;
+  color: var(--color-primary);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.time-input {
+  font-size: 16px;
+  color: var(--color-primary);
+  border: none;
+  background: none;
+  text-align: right;
+  font-family: var(--font-family);
+}
+
 /* ============================================
    Buttons
    ============================================ */

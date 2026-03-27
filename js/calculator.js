@@ -2,31 +2,48 @@
 
 const BolusCalc = {
   /**
-   * Get the current time period based on routine times.
-   * Periods: wakeUp, breakfast, lunch, dinner, bedTime
-   * Each period starts at the midpoint between its time and the previous period's time.
+   * Get the current time block based on routine times.
+   * Blocks: earlyMorning, morning, afternoon, evening, overnight
+   *
+   * | Block         | Start          | End                                    |
+   * |---------------|----------------|----------------------------------------|
+   * | Early Morning | Wakeup         | Breakfast                              |
+   * | Morning       | Breakfast      | max(Breakfast, Lunch − 1h)             |
+   * | Afternoon     | Lunch − 1h     | max(Lunch, Dinner − 1h)                |
+   * | Evening       | Dinner − 1h    | max(Dinner, Bedtime − 1h)              |
+   * | Overnight     | Bedtime − 1h   | Wakeup                                 |
    */
-  resolvePeriod(now) {
+  resolvePeriod(now, routineTimes) {
     if (!now) now = new Date();
+    const rt = routineTimes || State.getRoutineTimes();
     const hour = now.getHours() + now.getMinutes() / 60;
 
-    // Midpoints between periods
-    const boundaries = [
-      { period: 'wakeUp',    start: (ROUTINE_TIMES.bedTime - 24 + ROUTINE_TIMES.wakeUp) / 2 },
-      { period: 'breakfast', start: (ROUTINE_TIMES.wakeUp + ROUTINE_TIMES.breakfast) / 2 },
-      { period: 'lunch',     start: (ROUTINE_TIMES.breakfast + ROUTINE_TIMES.lunch) / 2 },
-      { period: 'dinner',    start: (ROUTINE_TIMES.lunch + ROUTINE_TIMES.dinner) / 2 },
-      { period: 'bedTime',   start: (ROUTINE_TIMES.dinner + ROUTINE_TIMES.bedTime) / 2 }
-    ];
+    const overnightStart = rt.bedTime - 1;
+    const eveningStart = rt.dinner - 1;
+    const afternoonStart = rt.lunch - 1;
+    const morningStart = rt.breakfast;
+    const earlyMorningStart = rt.wakeUp;
 
-    // Find the applicable period (go backwards)
-    for (let i = boundaries.length - 1; i >= 0; i--) {
-      if (hour >= boundaries[i].start) {
-        return boundaries[i].period;
-      }
-    }
-    // Before wakeUp midpoint = bedTime (wraps around midnight)
-    return 'bedTime';
+    // Overnight wraps around midnight
+    if (hour >= overnightStart || hour < earlyMorningStart) return 'overnight';
+    if (hour >= eveningStart) return 'evening';
+    if (hour >= afternoonStart) return 'afternoon';
+    if (hour >= morningStart) return 'morning';
+    return 'earlyMorning';
+  },
+
+  /**
+   * Compute the start and end times for each time block.
+   */
+  getTimeBlocks(routineTimes) {
+    const rt = routineTimes || State.getRoutineTimes();
+    return {
+      earlyMorning: { start: rt.wakeUp, end: rt.breakfast },
+      morning:      { start: rt.breakfast, end: Math.max(rt.breakfast, rt.lunch - 1) },
+      afternoon:    { start: rt.lunch - 1, end: Math.max(rt.lunch, rt.dinner - 1) },
+      evening:      { start: rt.dinner - 1, end: Math.max(rt.dinner, rt.bedTime - 1) },
+      overnight:    { start: rt.bedTime - 1, end: rt.wakeUp }
+    };
   },
 
   /**

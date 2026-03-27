@@ -8,20 +8,20 @@ const RAPID_ACTING_INSULINS = [
   'Lyumjev'
 ];
 
-const ROUTINE_TIMES = {
-  wakeUp: 7,      // 07:00
+const DEFAULT_ROUTINE_TIMES = {
+  wakeUp: 7,       // 07:00
   breakfast: 8,    // 08:00
-  lunch: 12,       // 12:00
-  dinner: 18,      // 18:00
-  bedTime: 22      // 22:00
+  lunch: 13,       // 13:00
+  dinner: 19,      // 19:00
+  bedTime: 23      // 23:00
 };
 
 const PERIOD_LABELS = {
-  wakeUp: 'Wake Up',
-  breakfast: 'Breakfast',
-  lunch: 'Lunch',
-  dinner: 'Dinner',
-  bedTime: 'Bed Time'
+  earlyMorning: 'Early Morning',
+  morning: 'Morning',
+  afternoon: 'Afternoon',
+  evening: 'Evening',
+  overnight: 'Overnight'
 };
 
 const DEFAULT_MOCK_INSULIN_LOGS = [
@@ -32,7 +32,7 @@ const DEFAULT_MOCK_INSULIN_LOGS = [
 const DEFAULT_MOCK_DIARY = {
   bg: 180,
   carbs: 45,
-  period: 'lunch',
+  period: 'afternoon',
   medication: 'Fiasp',
   time: new Date()
 };
