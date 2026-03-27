@@ -130,7 +130,9 @@ const Views = {
 
       // Use simulated diary time if set, otherwise current time
       const diaryTime = mockData.diaryTime ? new Date(mockData.diaryTime) : new Date();
-      const timeStr = diaryTime.toLocaleDateString('en-US', { weekday: 'short', month: '2-digit', day: '2-digit', year: 'numeric' }) + ', ' + diaryTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+      // datetime-local input requires local time string (not UTC)
+      const pad = n => String(n).padStart(2, '0');
+      const diaryTimeInputVal = `${diaryTime.getFullYear()}-${pad(diaryTime.getMonth()+1)}-${pad(diaryTime.getDate())}T${pad(diaryTime.getHours())}:${pad(diaryTime.getMinutes())}`;
       const period = BolusCalc.resolvePeriod(diaryTime);
       const periodLabel = PERIOD_LABELS[period];
 
@@ -144,11 +146,11 @@ const Views = {
           <div class="card" style="margin-top:12px">
             <div class="input-row">
               <span class="list-row-label">Time</span>
-              <span class="list-row-value">${timeStr} &#9662;</span>
+              <input type="datetime-local" id="diary-time-input" value="${diaryTimeInputVal}" style="font-size:13px;color:var(--color-primary);border:none;background:none;text-align:right;padding:0">
             </div>
             <div class="input-row">
               <span class="list-row-label">Period</span>
-              <span class="list-row-value">${periodLabel} &#9662;</span>
+              <span class="list-row-value" id="diary-period-label">${periodLabel}</span>
             </div>
           </div>
 
@@ -251,6 +253,22 @@ const Views = {
     init(params) {
       const calcBG = params.calcBG;
       const calcCarbs = params.calcCarbs;
+
+      // Diary time editing
+      const diaryTimeInput = document.getElementById('diary-time-input');
+      if (diaryTimeInput) {
+        diaryTimeInput.addEventListener('change', () => {
+          const val = diaryTimeInput.value;
+          const md = State.getMockData();
+          md.diaryTime = val ? new Date(val).getTime() : null;
+          State.setMockData(md);
+          const newTime = md.diaryTime ? new Date(md.diaryTime) : new Date();
+          const newPeriod = BolusCalc.resolvePeriod(newTime);
+          const periodLabel = document.getElementById('diary-period-label');
+          if (periodLabel) periodLabel.textContent = PERIOD_LABELS[newPeriod];
+        });
+      }
+
       const btn = document.getElementById('med-bolus-calc-btn');
       if (btn) {
         btn.addEventListener('click', () => {
@@ -894,11 +912,6 @@ const SimModal = {
       logsHtml = '<div class="mock-log-item" style="color:var(--color-text-secondary)">No recent insulin logs</div>';
     }
 
-    // Format diary time for input
-    const diaryTimeVal = mockData.diaryTime
-      ? new Date(mockData.diaryTime).toISOString().slice(0, 16)
-      : new Date().toISOString().slice(0, 16);
-
     const overlay = document.createElement('div');
     overlay.id = 'sim-modal';
     overlay.className = 'modal-overlay';
@@ -934,12 +947,6 @@ const SimModal = {
           <div class="mock-config" style="margin:0;margin-top:16px">
             <h3>Diary Entry Values</h3>
             <div class="card" style="margin:0">
-              <div class="input-row" style="padding:10px 12px">
-                <span style="font-size:13px;color:var(--color-text)">Diary Time</span>
-                <div class="input-row-right">
-                  <input type="datetime-local" id="sim-diary-time" value="${diaryTimeVal}" style="font-size:13px;color:var(--color-primary);border:none;background:none;text-align:right">
-                </div>
-              </div>
               <div class="input-row" style="padding:10px 12px">
                 <span style="font-size:13px;color:var(--color-text)">Blood Glucose</span>
                 <div class="input-row-right">
@@ -984,10 +991,8 @@ const SimModal = {
     const saveDiaryInputs = (md) => {
       const bgVal = document.getElementById('sim-bg').value;
       const carbsVal = document.getElementById('sim-carbs').value;
-      const diaryTimeInput = document.getElementById('sim-diary-time').value;
       md.diaryBG = bgVal ? parseFloat(bgVal) : null;
       md.diaryCarbs = carbsVal ? parseFloat(carbsVal) : null;
-      md.diaryTime = diaryTimeInput ? new Date(diaryTimeInput).getTime() : null;
       md.selectedInsulin = document.getElementById('sim-insulin').value;
     };
 
