@@ -128,8 +128,9 @@ const Views = {
       const calcBG = params.calcBG;
       const calcCarbs = params.calcCarbs;
 
-      // Use simulated diary time if set, otherwise current time
-      const diaryTime = mockData.diaryTime ? new Date(mockData.diaryTime) : new Date();
+      // Always default to current system time when opening a diary
+      const diaryTime = new Date();
+      State.setMockData(Object.assign(State.getMockData(), { diaryTime: diaryTime.getTime() }));
       // datetime-local input requires local time string (not UTC)
       const pad = n => String(n).padStart(2, '0');
       const diaryTimeInputVal = `${diaryTime.getFullYear()}-${pad(diaryTime.getMonth()+1)}-${pad(diaryTime.getDate())}T${pad(diaryTime.getHours())}:${pad(diaryTime.getMinutes())}`;
