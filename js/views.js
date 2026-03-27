@@ -171,21 +171,23 @@ const Views = {
               </div>
             </div>
             <div style="padding:8px 16px;font-size:13px;color:var(--color-text-secondary);border-bottom:1px solid var(--color-border)">Insulin/GLP-1</div>
+            ${isApplied ? `
             <div class="input-row">
               <div style="display:flex;align-items:center;gap:8px">
-                <span class="med-checkbox ${isApplied ? 'checked' : ''}">
-                  ${isApplied ? '&#10003;' : ''}
-                </span>
-                <span>${appliedInsulin || mockData.selectedInsulin || 'Fiasp'}</span>
+                <span class="med-checkbox checked">&#10003;</span>
+                <span>${appliedInsulin}</span>
               </div>
               <div class="input-row-right">
-                <span class="list-row-value">${isApplied ? appliedDose : '—'}</span>
+                <span class="list-row-value">${appliedDose}</span>
                 <span class="input-unit">unit</span>
               </div>
             </div>
+            ` : `
+            <div id="med-insulin-list"></div>
             <div style="padding:12px 16px">
-              <span class="text-primary" style="font-size:14px;cursor:pointer">+ Add medication</span>
+              <span class="text-primary" style="font-size:14px;cursor:pointer" id="med-add-medication">+ Add medication</span>
             </div>
+            `}
           </div>
 
           <button class="bolus-calc-btn" id="med-bolus-calc-btn">
@@ -267,6 +269,40 @@ const Views = {
           const newPeriod = BolusCalc.resolvePeriod(newTime);
           const periodLabel = document.getElementById('diary-period-label');
           if (periodLabel) periodLabel.textContent = PERIOD_LABELS[newPeriod];
+        });
+      }
+
+      const addMedBtn = document.getElementById('med-add-medication');
+      if (addMedBtn) {
+        addMedBtn.addEventListener('click', () => {
+          addMedBtn.style.display = 'none';
+          const list = document.getElementById('med-insulin-list');
+          const selectRow = document.createElement('div');
+          selectRow.style.cssText = 'padding:8px 16px';
+          selectRow.innerHTML = `
+            <select class="select-field" id="med-insulin-select">
+              <option value="">Select insulin...</option>
+              ${RAPID_ACTING_INSULINS.map(ins => `<option value="${ins}">${ins}</option>`).join('')}
+            </select>`;
+          list.appendChild(selectRow);
+          document.getElementById('med-insulin-select').addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (!val) return;
+            selectRow.remove();
+            addMedBtn.style.display = '';
+            const insulinRow = document.createElement('div');
+            insulinRow.className = 'input-row';
+            insulinRow.innerHTML = `
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="med-checkbox"></span>
+                <span>${val}</span>
+              </div>
+              <div class="input-row-right">
+                <span class="list-row-value">—</span>
+                <span class="input-unit">unit</span>
+              </div>`;
+            list.appendChild(insulinRow);
+          });
         });
       }
 
@@ -1036,16 +1072,6 @@ const SimModal = {
                   <span class="input-unit">g</span>
                 </div>
               </div>
-              <div class="input-row" style="padding:10px 12px">
-                <span style="font-size:13px;color:var(--color-text)">Insulin</span>
-                <div class="input-row-right">
-                  <select class="select-field" id="sim-insulin" style="width:auto;font-size:13px;padding:6px 28px 6px 8px">
-                    ${RAPID_ACTING_INSULINS.map(ins =>
-                      `<option value="${ins}" ${ins === mockData.selectedInsulin ? 'selected' : ''}>${ins}</option>`
-                    ).join('')}
-                  </select>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -1068,7 +1094,6 @@ const SimModal = {
       const carbsVal = document.getElementById('sim-carbs').value;
       md.diaryBG = bgVal ? parseFloat(bgVal) : null;
       md.diaryCarbs = carbsVal ? parseFloat(carbsVal) : null;
-      md.selectedInsulin = document.getElementById('sim-insulin').value;
     };
 
     document.getElementById('sim-modal-close').addEventListener('click', closeModal);
