@@ -194,16 +194,22 @@ const Views = {
             &#128225; Bolus Calculator
           </button>
 
+          <div class="card" style="margin-top:12px">
+            <div class="input-row">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="color:#FF6B6B">&#128167;</span>
+                <span class="list-row-label">Blood Glucose</span>
+              </div>
+              <div class="input-row-right">
+                <input class="input-field" type="text" inputmode="decimal" id="diary-bg" value="${calcBG != null ? calcBG : ''}" placeholder="Enter">
+                <span class="input-unit">mg/dL</span>
+              </div>
+            </div>
+          </div>
+
           <div style="padding:16px;text-align:center;color:var(--color-text-secondary);font-size:14px">Add others:</div>
 
           <div class="card">
-            <div class="list-row list-row-clickable">
-              <div style="display:flex;align-items:center">
-                <span class="list-row-icon" style="color:#FF6B6B">&#128167;</span>
-                <span class="list-row-label">Blood Glucose</span>
-              </div>
-              <span style="font-size:20px;color:var(--color-text-tertiary)">+</span>
-            </div>
             <div class="list-row list-row-clickable">
               <div style="display:flex;align-items:center">
                 <span class="list-row-icon" style="color:#FF9500">&#128147;</span>
@@ -313,12 +319,12 @@ const Views = {
       const btn = document.getElementById('med-bolus-calc-btn');
       if (btn) {
         btn.addEventListener('click', () => {
+          const bgInput = document.getElementById('diary-bg');
           const carbsInput = document.getElementById('med-carbs');
-          const currentCarbs = carbsInput ? parseFloat(carbsInput.value) || null : calcCarbs;
           App.navigate('calculator', {
             mode: 'contextual',
-            calcBG: calcBG,
-            calcCarbs: currentCarbs != null ? currentCarbs : calcCarbs,
+            calcBG: bgInput ? parseFloat(bgInput.value) || null : null,
+            calcCarbs: carbsInput ? parseFloat(carbsInput.value) || null : null,
             selectedInsulin: selectedInsulin
           });
         });
@@ -1042,71 +1048,6 @@ function showIobLogsPanel() {
   renderPanel();
 }
 
-// ==========================================
-// Simulation Settings Modal
-// ==========================================
-
-const SimModal = {
-  show(onConfirm) {
-    const mockData = State.getMockData();
-
-    const overlay = document.createElement('div');
-    overlay.id = 'sim-modal';
-    overlay.className = 'modal-overlay';
-    overlay.innerHTML = `
-      <div class="sim-modal-box">
-        <div class="sim-modal-header">
-          <span style="font-size:15px;font-weight:600">Simulation Settings</span>
-          <span id="sim-modal-close" style="font-size:22px;cursor:pointer;color:var(--color-text-secondary)">&times;</span>
-        </div>
-        <div class="sim-modal-body">
-          <div class="mock-config" style="margin:0">
-            <h3>Diary Entry Values</h3>
-            <div class="card" style="margin:0">
-              <div class="input-row" style="padding:10px 12px">
-                <span style="font-size:13px;color:var(--color-text)">Blood Glucose</span>
-                <div class="input-row-right">
-                  <input class="input-field" type="text" inputmode="decimal" id="sim-bg" value="${mockData.diaryBG || ''}" placeholder="—" style="width:50px;font-size:14px">
-                  <span class="input-unit">mg/dL</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style="padding:12px 16px;border-top:1px solid var(--color-border)">
-          <button class="btn btn-primary" id="sim-confirm" style="font-size:15px;padding:12px">Continue</button>
-        </div>
-      </div>
-    `;
-
-    document.getElementById('app-frame').appendChild(overlay);
-
-    // Bind events
-    const closeModal = () => {
-      overlay.remove();
-    };
-
-    // Helper: capture current diary input values into mock data object
-    const saveDiaryInputs = (md) => {
-      const bgVal = document.getElementById('sim-bg').value;
-      md.diaryBG = bgVal ? parseFloat(bgVal) : null;
-    };
-
-    document.getElementById('sim-modal-close').addEventListener('click', closeModal);
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) closeModal();
-    });
-
-    // Confirm — save values and proceed
-    document.getElementById('sim-confirm').addEventListener('click', () => {
-      const md = State.getMockData();
-      saveDiaryInputs(md);
-      State.setMockData(md);
-      closeModal();
-      if (onConfirm) onConfirm();
-    });
-  }
-};
 
 // ==========================================
 // Helpers

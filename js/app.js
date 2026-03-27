@@ -34,13 +34,11 @@ const App = {
         return;
       }
 
-      // Open diary panel from + button (show simulation modal first)
+      // Open diary panel from + button
       const addEl = e.target.closest('[data-action="open-diary"]');
       if (addEl) {
         e.preventDefault();
-        SimModal.show(() => {
-          this.openPanel('medication', {});
-        });
+        this.openPanel('medication', {});
         return;
       }
 
