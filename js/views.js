@@ -460,19 +460,6 @@ const Views = {
               <button class="btn btn-primary" id="calc-btn">Calculate</button>
             </div>
 
-            <div id="calc-result"></div>
-
-            <div id="calc-action" class="hidden" style="padding:0 16px 16px">
-              <div class="section-header" style="padding-left:0">${mode === 'contextual' ? 'Apply To' : 'Rapid-Acting Insulin'}</div>
-              <select class="select-field" id="calc-insulin" style="margin-bottom:12px">
-                ${RAPID_ACTING_INSULINS.map(ins =>
-                  `<option value="${ins}" ${ins === (params.selectedInsulin || mockData.selectedInsulin || 'Fiasp') ? 'selected' : ''}>${ins}</option>`
-                ).join('')}
-              </select>
-              <button class="btn btn-primary" id="calc-apply">
-                ${mode === 'contextual' ? 'Apply' : 'Create Diary'}
-              </button>
-            </div>
           `}
         </div>
       `;
@@ -510,72 +497,33 @@ const Views = {
         });
 
         this._result = result;
-
-        let resultHtml = `
-          <div class="result-card">
-            <div class="result-label">Recommended Bolus</div>
-            <div class="result-value">${result.recommended.toFixed(1)}<span class="result-unit">U</span></div>
-            ${result.capped ? '<div style="font-size:12px;color:var(--color-warning);margin-top:4px">Capped at maximum 50U</div>' : ''}
-            ${settings.showBreakdown ? `
-              <div class="result-breakdown">
-                <div class="breakdown-row">
-                  <span class="breakdown-label">Carb Dose</span>
-                  <span class="breakdown-value">${result.carbDose} U</span>
-                </div>
-                <div class="breakdown-row">
-                  <span class="breakdown-label">Correction Dose</span>
-                  <span class="breakdown-value">${result.correctionDose} U</span>
-                </div>
-                <div class="breakdown-row">
-                  <span class="breakdown-label">IOB (subtracted)</span>
-                  <span class="breakdown-value">−${result.iob} U</span>
-                </div>
-              </div>
-            ` : ''}
-          </div>
-        `;
-
-        if (result.warning) {
-          resultHtml += `
-            <div class="warning-banner">
-              <span class="warning-icon">&#9888;&#65039;</span>
-              <div>This is a really large dose, please double-check your entries and settings. Please also confirm with your doctor if you really need to take that much.</div>
-            </div>
-          `;
-        }
-
-        document.getElementById('calc-result').innerHTML = resultHtml;
-        document.getElementById('calc-action').classList.remove('hidden');
-      });
-
-      // Apply / Create Diary
-      const applyBtn = document.getElementById('calc-apply');
-      if (applyBtn) {
-        applyBtn.addEventListener('click', () => {
-          if (!this._result) return;
-          const insulin = document.getElementById('calc-insulin').value;
-
-          if (mode === 'contextual') {
+        showCalcResultModal({
+          result,
+          settings,
+          mode,
+          selectedInsulin: params.selectedInsulin || State.getMockData().selectedInsulin || 'Fiasp',
+          onApply: (insulin) => {
             const carbs = document.getElementById('calc-carbs').value;
-            App.navigate('medication', {
-              appliedDose: this._result.recommended,
-              appliedInsulin: insulin,
-              calcCarbs: carbs ? parseFloat(carbs) : null
-            });
-          } else {
-            const carbs = document.getElementById('calc-carbs').value;
-            App._currentView = 'more';
-            App._currentParams = {};
-            App._history = [];
-            App._render();
-            App.openPanel('medication', {
-              appliedDose: this._result.recommended,
-              appliedInsulin: insulin,
-              calcCarbs: carbs ? parseFloat(carbs) : null
-            });
+            if (mode === 'contextual') {
+              App.navigate('medication', {
+                appliedDose: result.recommended,
+                appliedInsulin: insulin,
+                calcCarbs: carbs ? parseFloat(carbs) : null
+              });
+            } else {
+              App._currentView = 'more';
+              App._currentParams = {};
+              App._history = [];
+              App._render();
+              App.openPanel('medication', {
+                appliedDose: result.recommended,
+                appliedInsulin: insulin,
+                calcCarbs: carbs ? parseFloat(carbs) : null
+              });
+            }
           }
         });
-      }
+      });
     }
   },
 
@@ -923,6 +871,84 @@ function showTimeBlockInfo() {
   document.getElementById('info-goto-routine').addEventListener('click', () => {
     closeModal();
     App.navigate('routine');
+  });
+}
+
+// ==========================================
+// Calc Result Modal
+// ==========================================
+
+function showCalcResultModal({ result, settings, mode, selectedInsulin, onApply }) {
+  const existing = document.getElementById('calc-result-modal');
+  if (existing) existing.remove();
+
+  let resultHtml = `
+    <div class="result-card" style="margin:0">
+      <div class="result-label">Recommended Bolus</div>
+      <div class="result-value">${result.recommended.toFixed(1)}<span class="result-unit">U</span></div>
+      ${result.capped ? '<div style="font-size:12px;color:var(--color-warning);margin-top:4px">Capped at maximum 50U</div>' : ''}
+      ${settings.showBreakdown ? `
+        <div class="result-breakdown">
+          <div class="breakdown-row">
+            <span class="breakdown-label">Carb Dose</span>
+            <span class="breakdown-value">${result.carbDose} U</span>
+          </div>
+          <div class="breakdown-row">
+            <span class="breakdown-label">Correction Dose</span>
+            <span class="breakdown-value">${result.correctionDose} U</span>
+          </div>
+          <div class="breakdown-row">
+            <span class="breakdown-label">IOB (subtracted)</span>
+            <span class="breakdown-value">−${result.iob} U</span>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  if (result.warning) {
+    resultHtml += `
+      <div class="warning-banner" style="margin-top:12px">
+        <span class="warning-icon">&#9888;&#65039;</span>
+        <div>This is a really large dose, please double-check your entries and settings. Please also confirm with your doctor if you really need to take that much.</div>
+      </div>
+    `;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'calc-result-modal';
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="sim-modal-box">
+      <div class="sim-modal-header">
+        <span style="font-size:15px;font-weight:600">Bolus Recommendation</span>
+      </div>
+      <div class="sim-modal-body">
+        ${resultHtml}
+        <div style="margin-top:16px">
+          <div class="section-header" style="padding:0 0 8px 0">${mode === 'contextual' ? 'Apply To' : 'Rapid-Acting Insulin'}</div>
+          <select class="select-field" id="modal-calc-insulin">
+            ${RAPID_ACTING_INSULINS.map(ins =>
+              `<option value="${ins}" ${ins === selectedInsulin ? 'selected' : ''}>${ins}</option>`
+            ).join('')}
+          </select>
+        </div>
+      </div>
+      <div style="padding:12px 16px;border-top:1px solid var(--color-border);display:flex;gap:10px">
+        <button class="btn btn-outline" id="calc-result-cancel" style="flex:1;font-size:15px;padding:12px">Adjust</button>
+        <button class="btn btn-primary" id="calc-result-apply" style="flex:2;font-size:15px;padding:12px">${mode === 'contextual' ? 'Apply' : 'Create Diary'}</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('app-frame').appendChild(overlay);
+
+  document.getElementById('calc-result-cancel').addEventListener('click', () => overlay.remove());
+
+  document.getElementById('calc-result-apply').addEventListener('click', () => {
+    const insulin = document.getElementById('modal-calc-insulin').value;
+    overlay.remove();
+    onApply(insulin);
   });
 }
 
