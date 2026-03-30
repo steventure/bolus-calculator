@@ -937,13 +937,14 @@ function showIobLogsPanel() {
 
     const mockData = State.getMockData();
     const logs = mockData.recentInsulinLogs || [];
+    const sortedLogs = logs.map((log, i) => ({ ...log, _i: i })).sort((a, b) => b.timestamp - a.timestamp);
 
-    const logsHtml = logs.length > 0
-      ? logs.map((log, i) => {
+    const logsHtml = sortedLogs.length > 0
+      ? sortedLogs.map((log) => {
           const ago = formatTimeAgo(log.timestamp);
           return `<div class="mock-log-item">
             <span>${log.name} — ${log.dose}U — ${ago}</span>
-            <span class="mock-log-remove" data-iob-remove="${i}">&times;</span>
+            <span class="mock-log-remove" data-iob-remove="${log._i}">&times;</span>
           </div>`;
         }).join('')
       : '<div class="mock-log-item" style="color:var(--color-text-secondary)">No recent insulin logs</div>';
@@ -1078,14 +1079,15 @@ function showBgLogsPanel() {
 
     const mockData = State.getMockData();
     const logs = mockData.recentBGLogs || [];
+    const sortedBGLogs = logs.map((log, i) => ({ ...log, _i: i })).sort((a, b) => b.timestamp - a.timestamp);
 
-    const logsHtml = logs.length > 0
-      ? logs.map((log, i) => {
+    const logsHtml = sortedBGLogs.length > 0
+      ? sortedBGLogs.map((log) => {
           const ago = formatTimeAgo(log.timestamp);
           const isRecent = Date.now() - log.timestamp <= BG_WINDOW_MS;
           return `<div class="mock-log-item">
             <span>${log.value} mg/dL — ${ago}${isRecent ? ' ✓' : ''}</span>
-            <span class="mock-log-remove" data-bg-remove="${i}">&times;</span>
+            <span class="mock-log-remove" data-bg-remove="${log._i}">&times;</span>
           </div>`;
         }).join('')
       : '<div class="mock-log-item" style="color:var(--color-text-secondary)">No BG logs</div>';
