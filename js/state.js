@@ -30,7 +30,7 @@ const defaultState = {
   routineTimes: Object.assign({}, DEFAULT_ROUTINE_TIMES),
   mockData: {
     recentInsulinLogs: DEFAULT_MOCK_INSULIN_LOGS,
-    diaryBG: 180,
+    recentBGLogs: [],
     diaryCarbs: 45,
     diaryTime: null,
     selectedInsulin: 'Fiasp'

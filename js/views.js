@@ -125,7 +125,6 @@ const Views = {
       const appliedDose = params.appliedDose;
       const appliedInsulin = params.appliedInsulin;
       const isApplied = appliedDose != null;
-      const calcBG = params.calcBG;
       const calcCarbs = params.calcCarbs;
 
       // Always default to current system time when opening a diary
@@ -194,19 +193,6 @@ const Views = {
             &#128225; Bolus Calculator
           </button>
 
-          <div class="card" style="margin-top:12px">
-            <div class="input-row">
-              <div style="display:flex;align-items:center;gap:6px">
-                <span style="color:#FF6B6B">&#128167;</span>
-                <span class="list-row-label">Blood Glucose</span>
-              </div>
-              <div class="input-row-right">
-                <input class="input-field" type="text" inputmode="decimal" id="diary-bg" value="${calcBG != null ? calcBG : ''}" placeholder="Enter">
-                <span class="input-unit">mg/dL</span>
-              </div>
-            </div>
-          </div>
-
           <div style="padding:16px;text-align:center;color:var(--color-text-secondary);font-size:14px">Add others:</div>
 
           <div class="card">
@@ -260,7 +246,6 @@ const Views = {
     },
 
     init(params) {
-      const calcBG = params.calcBG;
       const calcCarbs = params.calcCarbs;
 
       // Diary time editing
@@ -319,11 +304,9 @@ const Views = {
       const btn = document.getElementById('med-bolus-calc-btn');
       if (btn) {
         btn.addEventListener('click', () => {
-          const bgInput = document.getElementById('diary-bg');
           const carbsInput = document.getElementById('med-carbs');
           App.navigate('calculator', {
             mode: 'contextual',
-            calcBG: bgInput ? parseFloat(bgInput.value) || null : null,
             calcCarbs: carbsInput ? parseFloat(carbsInput.value) || null : null,
             selectedInsulin: selectedInsulin
           });
@@ -371,13 +354,18 @@ const Views = {
       );
       const settingsComplete = State.isSettingsComplete();
 
-      // Pre-fill based on mode
-      let prefillBG = '';
+      // Carbs pre-fill (from diary)
       let prefillCarbs = '';
       if (mode === 'contextual') {
-        prefillBG = params.calcBG != null ? params.calcBG : '';
         prefillCarbs = params.calcCarbs != null ? params.calcCarbs : '';
       }
+
+      // BG from most recent log within 30 minutes
+      const bgLogs = mockData.recentBGLogs || [];
+      const recentBGLog = bgLogs
+        .filter(l => Date.now() - l.timestamp <= 30 * 60 * 1000)
+        .sort((a, b) => b.timestamp - a.timestamp)[0];
+      const prefillBG = recentBGLog ? recentBGLog.value : '';
 
       this._result = null;
 
@@ -406,7 +394,10 @@ const Views = {
             <div class="section-header">Inputs</div>
             <div class="card">
               <div class="input-row">
-                <span class="list-row-label">Current Blood Glucose</span>
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <span class="list-row-label">Current Blood Glucose</span>
+                  <button id="bg-logs-btn" style="font-size:11px;color:var(--color-primary);background:none;border:none;padding:0;text-align:left;cursor:pointer">Manage Logs</button>
+                </div>
                 <div class="input-row-right">
                   <input class="input-field" type="text" inputmode="decimal" id="calc-bg" value="${prefillBG}" placeholder="Enter">
                   <span class="input-unit">mg/dL</span>
@@ -431,6 +422,7 @@ const Views = {
               </div>
             </div>
             <div class="iob-info" id="iob-info" ${iob > 0 ? '' : 'style="display:none"'}>IOB auto-calculated from ${(mockData.recentInsulinLogs || []).filter(l => (Date.now() - l.timestamp) < settings.insulinActionDuration * 60000).length} recent dose(s) within the past ${formatDIA(settings.insulinActionDuration)}</div>
+            <div class="iob-info" id="bg-info" ${recentBGLog ? '' : 'style="display:none"'}>BG auto-filled from most recent log (${recentBGLog ? formatTimeAgo(recentBGLog.timestamp) : ''})</div>
 
             <div class="section-header">Parameters (${PERIOD_LABELS[period]})</div>
             <div class="card">
@@ -486,6 +478,9 @@ const Views = {
 
       const iobLogsBtn = document.getElementById('iob-logs-btn');
       if (iobLogsBtn) iobLogsBtn.addEventListener('click', () => showIobLogsPanel());
+
+      const bgLogsBtn = document.getElementById('bg-logs-btn');
+      if (bgLogsBtn) bgLogsBtn.addEventListener('click', () => showBgLogsPanel());
 
       calcBtn.addEventListener('click', () => {
         const settings = State.getSettings();
@@ -554,16 +549,13 @@ const Views = {
           const insulin = document.getElementById('calc-insulin').value;
 
           if (mode === 'contextual') {
-            const bg = document.getElementById('calc-bg').value;
             const carbs = document.getElementById('calc-carbs').value;
             App.navigate('medication', {
               appliedDose: this._result.recommended,
               appliedInsulin: insulin,
-              calcBG: bg ? parseFloat(bg) : null,
               calcCarbs: carbs ? parseFloat(carbs) : null
             });
           } else {
-            const bg = document.getElementById('calc-bg').value;
             const carbs = document.getElementById('calc-carbs').value;
             App._currentView = 'more';
             App._currentParams = {};
@@ -572,7 +564,6 @@ const Views = {
             App.openPanel('medication', {
               appliedDose: this._result.recommended,
               appliedInsulin: insulin,
-              calcBG: bg ? parseFloat(bg) : null,
               calcCarbs: carbs ? parseFloat(carbs) : null
             });
           }
@@ -1048,6 +1039,122 @@ function showIobLogsPanel() {
   renderPanel();
 }
 
+// ==========================================
+// BG Logs Panel
+// ==========================================
+
+function showBgLogsPanel() {
+  const BG_WINDOW_MS = 30 * 60 * 1000;
+
+  const updateCalcBG = () => {
+    const md = State.getMockData();
+    const logs = md.recentBGLogs || [];
+    const recent = logs
+      .filter(l => Date.now() - l.timestamp <= BG_WINDOW_MS)
+      .sort((a, b) => b.timestamp - a.timestamp);
+    const bgInput = document.getElementById('calc-bg');
+    const bgInfo = document.getElementById('bg-info');
+    if (bgInput) bgInput.value = recent.length > 0 ? recent[0].value : '';
+    if (bgInfo) {
+      if (recent.length > 0) {
+        bgInfo.textContent = `BG auto-filled from most recent log (${formatTimeAgo(recent[0].timestamp)})`;
+        bgInfo.style.display = '';
+      } else {
+        bgInfo.style.display = 'none';
+      }
+    }
+  };
+
+  const renderPanel = () => {
+    const existing = document.getElementById('bg-logs-panel');
+    if (existing) existing.remove();
+
+    const mockData = State.getMockData();
+    const logs = mockData.recentBGLogs || [];
+
+    const logsHtml = logs.length > 0
+      ? logs.map((log, i) => {
+          const ago = formatTimeAgo(log.timestamp);
+          const isRecent = Date.now() - log.timestamp <= BG_WINDOW_MS;
+          return `<div class="mock-log-item">
+            <span>${log.value} mg/dL — ${ago}${isRecent ? ' ✓' : ''}</span>
+            <span class="mock-log-remove" data-bg-remove="${i}">&times;</span>
+          </div>`;
+        }).join('')
+      : '<div class="mock-log-item" style="color:var(--color-text-secondary)">No BG logs</div>';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'bg-logs-panel';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="sim-modal-box">
+        <div class="sim-modal-header">
+          <span style="font-size:15px;font-weight:600">Blood Glucose Logs</span>
+          <span id="bg-panel-close" style="font-size:22px;cursor:pointer;color:var(--color-text-secondary)">&times;</span>
+        </div>
+        <div class="sim-modal-body">
+          <div style="background:#fff8e1;border:1px solid #f5a623;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#7a6000">
+            &#9888;&#65039; For demo purposes only. In the real app, BG is read automatically from the user's CGM or logged measurements.
+          </div>
+          <div class="mock-config" style="margin:0">
+            <div id="bg-logs-list">${logsHtml}</div>
+            <div class="card" style="margin:0;margin-top:8px">
+              <div class="input-row" style="padding:10px 12px">
+                <span style="font-size:13px;color:var(--color-text)">BG Value</span>
+                <div class="input-row-right">
+                  <input class="input-field" type="text" inputmode="decimal" id="bg-log-value" value="120" placeholder="0" style="width:54px;font-size:14px">
+                  <span class="input-unit">mg/dL</span>
+                </div>
+              </div>
+              <div class="input-row" style="padding:10px 12px">
+                <span style="font-size:13px;color:var(--color-text)">Time ago</span>
+                <div class="input-row-right">
+                  <input class="input-field" type="text" inputmode="decimal" id="bg-log-mins" value="5" placeholder="0" style="width:44px;font-size:14px">
+                  <span class="input-unit">min</span>
+                </div>
+              </div>
+            </div>
+            <button class="mock-add-btn" id="bg-add-log" style="font-size:13px;padding:8px">+ Add Log</button>
+          </div>
+        </div>
+        <div style="padding:12px 16px;border-top:1px solid var(--color-border)">
+          <button class="btn btn-primary" id="bg-panel-done" style="font-size:15px;padding:12px">Done</button>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('app-frame').appendChild(overlay);
+
+    const closePanel = () => overlay.remove();
+    document.getElementById('bg-panel-close').addEventListener('click', closePanel);
+    document.getElementById('bg-panel-done').addEventListener('click', closePanel);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closePanel(); });
+
+    overlay.querySelectorAll('[data-bg-remove]').forEach(el => {
+      el.addEventListener('click', () => {
+        const md = State.getMockData();
+        md.recentBGLogs.splice(parseInt(el.dataset.bgRemove), 1);
+        State.setMockData(md);
+        updateCalcBG();
+        renderPanel();
+      });
+    });
+
+    document.getElementById('bg-add-log').addEventListener('click', () => {
+      const value = parseFloat(document.getElementById('bg-log-value').value) || 0;
+      const minsAgo = parseFloat(document.getElementById('bg-log-mins').value) || 0;
+      if (value <= 0) return;
+      const md = State.getMockData();
+      if (!md.recentBGLogs) md.recentBGLogs = [];
+      md.recentBGLogs.push({ value, timestamp: Date.now() - minsAgo * 60 * 1000 });
+      State.setMockData(md);
+      updateCalcBG();
+      renderPanel();
+    });
+  };
+
+  renderPanel();
+}
 
 // ==========================================
 // Helpers
