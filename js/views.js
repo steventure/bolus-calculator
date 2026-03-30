@@ -935,8 +935,8 @@ function showCalcResultModal({ result, settings, mode, selectedInsulin, onApply 
         </div>
       </div>
       <div style="padding:12px 16px;border-top:1px solid var(--color-border);display:flex;gap:10px">
-        <button class="btn btn-outline" id="calc-result-cancel" style="flex:1;font-size:15px;padding:12px">Adjust</button>
-        <button class="btn btn-primary" id="calc-result-apply" style="flex:2;font-size:15px;padding:12px">${mode === 'contextual' ? 'Apply' : 'Create Diary'}</button>
+        <button class="btn btn-outline" id="calc-result-cancel" style="flex:1;font-size:15px;padding:12px">Cancel</button>
+        <button class="btn btn-primary" id="calc-result-apply" style="flex:1;font-size:15px;padding:12px">${mode === 'contextual' ? 'Apply' : 'Create Diary'}</button>
       </div>
     </div>
   `;
