@@ -375,8 +375,8 @@ const Views = {
       let prefillBG = '';
       let prefillCarbs = '';
       if (mode === 'contextual') {
-        prefillBG = params.calcBG != null ? params.calcBG : (mockData.diaryBG || '');
-        prefillCarbs = params.calcCarbs != null ? params.calcCarbs : (mockData.diaryCarbs || '');
+        prefillBG = params.calcBG != null ? params.calcBG : '';
+        prefillCarbs = params.calcCarbs != null ? params.calcCarbs : '';
       }
 
       this._result = null;
