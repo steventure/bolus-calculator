@@ -198,6 +198,13 @@ const Views = {
           <div class="card">
             <div class="list-row list-row-clickable">
               <div style="display:flex;align-items:center">
+                <span class="list-row-icon" style="color:#FF6B6B">&#128167;</span>
+                <span class="list-row-label">Blood Glucose</span>
+              </div>
+              <span style="font-size:20px;color:var(--color-text-tertiary)">+</span>
+            </div>
+            <div class="list-row list-row-clickable">
+              <div style="display:flex;align-items:center">
                 <span class="list-row-icon" style="color:#FF9500">&#128147;</span>
                 <span class="list-row-label">Blood Pressure & Pulse</span>
               </div>
