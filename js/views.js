@@ -558,7 +558,7 @@ const Views = {
           </div>
 
           <div class="section-header" style="display:flex;align-items:center;justify-content:space-between">
-            <span>Dose Parameters</span>
+            <span>Insulin Ratios Profile</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px;padding:0 16px 8px">
             <div class="segmented" id="dose-mode-toggle" style="flex:1;margin:0">
