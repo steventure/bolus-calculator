@@ -536,6 +536,8 @@ const Views = {
     render() {
       const s = State.getSettings();
       this._draft = JSON.parse(JSON.stringify(s));
+      // Ensure ICR and ISF modes are always in sync
+      this._draft.isfMode = this._draft.icrMode;
       const blocks = BolusCalc.getTimeBlocks();
 
       return `
@@ -556,73 +558,55 @@ const Views = {
           </div>
 
           <div class="section-header" style="display:flex;align-items:center;justify-content:space-between">
-            <span>Insulin-to-Carb Ratio (ICR)</span>
+            <span>Dose Parameters</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px;padding:0 16px 8px">
-            <div class="segmented" id="icr-mode-toggle" style="flex:1;margin:0">
-              <button class="segmented-btn ${s.icrMode === 'single' ? 'active' : ''}" data-mode="single" data-target="icr">Single Value</button>
-              <button class="segmented-btn ${s.icrMode === 'perPeriod' ? 'active' : ''}" data-mode="perPeriod" data-target="icr">Per Block</button>
+            <div class="segmented" id="dose-mode-toggle" style="flex:1;margin:0">
+              <button class="segmented-btn ${s.icrMode === 'single' ? 'active' : ''}" data-mode="single">All-Day</button>
+              <button class="segmented-btn ${s.icrMode === 'perPeriod' ? 'active' : ''}" data-mode="perPeriod">Per Block</button>
             </div>
-            <button class="info-btn" id="icr-info-btn" style="${s.icrMode === 'perPeriod' ? '' : 'visibility:hidden'}">&#9432;</button>
+            <button class="info-btn" id="dose-info-btn" style="${s.icrMode === 'perPeriod' ? '' : 'visibility:hidden'}">&#9432;</button>
           </div>
-          <div class="card">
-            <div id="icr-single" class="${s.icrMode === 'perPeriod' ? 'hidden' : ''}">
-              <div class="input-row">
-                <span class="list-row-label">ICR</span>
-                <div class="input-row-right">
-                  <input class="input-field settings-input" type="text" inputmode="decimal" data-setting="icrSingle" value="${s.icrSingle || ''}" placeholder="Enter">
-                  <span class="input-unit">g/U</span>
-                </div>
+
+          <div class="card ${s.icrMode === 'perPeriod' ? 'hidden' : ''}" id="dose-single">
+            <div class="input-row">
+              <span class="list-row-label">ICR</span>
+              <div class="input-row-right">
+                <input class="input-field settings-input" type="text" inputmode="decimal" data-setting="icrSingle" value="${s.icrSingle || ''}" placeholder="Enter">
+                <span class="input-unit">g/U</span>
               </div>
             </div>
-            <div id="icr-period" class="${s.icrMode === 'single' ? 'hidden' : ''}">
-              ${Object.entries(PERIOD_LABELS).map(([key, label]) => `
+            <div class="input-row">
+              <span class="list-row-label">ISF</span>
+              <div class="input-row-right">
+                <input class="input-field settings-input" type="text" inputmode="decimal" data-setting="isfSingle" value="${s.isfSingle || ''}" placeholder="Enter">
+                <span class="input-unit">(mg/dL)/U</span>
+              </div>
+            </div>
+          </div>
+
+          <div id="dose-period" class="${s.icrMode === 'single' ? 'hidden' : ''}">
+            ${Object.entries(PERIOD_LABELS).map(([key, label]) => `
+              <div style="padding:16px 16px 4px;font-size:12px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.3px">
+                ${label}<span style="font-weight:400;margin-left:6px">${formatTimeRange(blocks[key])}</span>
+              </div>
+              <div class="card" style="margin-top:0">
                 <div class="input-row">
-                  <div>
-                    <span class="list-row-label" style="font-size:14px">${label}</span>
-                    <div style="font-size:11px;color:var(--color-text-secondary)">${formatTimeRange(blocks[key])}</div>
-                  </div>
+                  <span class="list-row-label">ICR</span>
                   <div class="input-row-right">
                     <input class="input-field settings-input" type="text" inputmode="decimal" data-setting="icrPerPeriod.${key}" value="${s.icrPerPeriod[key] || ''}" placeholder="—">
                     <span class="input-unit">g/U</span>
                   </div>
                 </div>
-              `).join('')}
-            </div>
-          </div>
-
-          <div class="section-header">Insulin Sensitivity Factor (ISF)</div>
-          <div style="display:flex;align-items:center;gap:8px;padding:0 16px 8px">
-            <div class="segmented" id="isf-mode-toggle" style="flex:1;margin:0">
-              <button class="segmented-btn ${s.isfMode === 'single' ? 'active' : ''}" data-mode="single" data-target="isf">Single Value</button>
-              <button class="segmented-btn ${s.isfMode === 'perPeriod' ? 'active' : ''}" data-mode="perPeriod" data-target="isf">Per Block</button>
-            </div>
-            <button class="info-btn" id="isf-info-btn" style="${s.isfMode === 'perPeriod' ? '' : 'visibility:hidden'}">&#9432;</button>
-          </div>
-          <div class="card">
-            <div id="isf-single" class="${s.isfMode === 'single' ? '' : 'hidden'}">
-              <div class="input-row">
-                <span class="list-row-label">ISF</span>
-                <div class="input-row-right">
-                  <input class="input-field settings-input" type="text" inputmode="decimal" data-setting="isfSingle" value="${s.isfSingle || ''}" placeholder="Enter">
-                  <span class="input-unit">(mg/dL)/U</span>
-                </div>
-              </div>
-            </div>
-            <div id="isf-period" class="${s.isfMode === 'single' ? 'hidden' : ''}">
-              ${Object.entries(PERIOD_LABELS).map(([key, label]) => `
                 <div class="input-row">
-                  <div>
-                    <span class="list-row-label" style="font-size:14px">${label}</span>
-                    <div style="font-size:11px;color:var(--color-text-secondary)">${formatTimeRange(blocks[key])}</div>
-                  </div>
+                  <span class="list-row-label">ISF</span>
                   <div class="input-row-right">
                     <input class="input-field settings-input" type="text" inputmode="decimal" data-setting="isfPerPeriod.${key}" value="${s.isfPerPeriod[key] || ''}" placeholder="—">
                     <span class="input-unit">(mg/dL)/U</span>
                   </div>
                 </div>
-              `).join('')}
-            </div>
+              </div>
+            `).join('')}
           </div>
 
           <div class="section-header">Other Settings</div>
@@ -664,35 +648,20 @@ const Views = {
     init() {
       const draft = this._draft;
 
-      // Segmented toggle for ICR
-      document.querySelectorAll('#icr-mode-toggle .segmented-btn').forEach(btn => {
+      // Unified Dose Parameters toggle (controls both ICR and ISF)
+      document.querySelectorAll('#dose-mode-toggle .segmented-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const mode = e.target.dataset.mode;
           draft.icrMode = mode;
-          document.querySelectorAll('#icr-mode-toggle .segmented-btn').forEach(b => b.classList.remove('active'));
-          e.target.classList.add('active');
-          document.getElementById('icr-single').classList.toggle('hidden', mode !== 'single');
-          document.getElementById('icr-period').classList.toggle('hidden', mode !== 'perPeriod');
-          document.getElementById('icr-info-btn').style.visibility = mode === 'perPeriod' ? 'visible' : 'hidden';
-        });
-      });
-
-      // Segmented toggle for ISF
-      document.querySelectorAll('#isf-mode-toggle .segmented-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const mode = e.target.dataset.mode;
           draft.isfMode = mode;
-          document.querySelectorAll('#isf-mode-toggle .segmented-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('#dose-mode-toggle .segmented-btn').forEach(b => b.classList.remove('active'));
           e.target.classList.add('active');
-          document.getElementById('isf-single').classList.toggle('hidden', mode !== 'single');
-          document.getElementById('isf-period').classList.toggle('hidden', mode !== 'perPeriod');
-          document.getElementById('isf-info-btn').style.visibility = mode === 'perPeriod' ? 'visible' : 'hidden';
+          document.getElementById('dose-single').classList.toggle('hidden', mode !== 'single');
+          document.getElementById('dose-period').classList.toggle('hidden', mode !== 'perPeriod');
+          document.getElementById('dose-info-btn').style.visibility = mode === 'perPeriod' ? 'visible' : 'hidden';
         });
       });
-
-      // Info buttons
-      document.getElementById('icr-info-btn').addEventListener('click', () => showTimeBlockInfo());
-      document.getElementById('isf-info-btn').addEventListener('click', () => showTimeBlockInfo());
+      document.getElementById('dose-info-btn').addEventListener('click', () => showTimeBlockInfo());
 
       // Input changes
       document.querySelectorAll('.settings-input').forEach(input => {
